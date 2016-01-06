@@ -83,8 +83,6 @@ func (m *rbm) resetDelta() {
 }
 
 func (m *rbm) Reset() {
-	m.resetDelta()
-
 	for i := 0; i < m.Visible(); i++ {
 		for j := 0; j < m.Hidden(); j++ {
 			m.w[i][j] = WeightStdDev * rand.NormFloat64()
