@@ -9,11 +9,11 @@ import (
 )
 
 func TestGaussianTrain(t *testing.T) {
-	shift := 3.0
+	shift1, shift2 := 3.0, -2.0
 	m := NewGaussian(2, 11)
 	var data [][]float64
 	for i := 0; i < 100; i++ {
-		data = append(data, []float64{rand.NormFloat64(), rand.NormFloat64() + shift})
+		data = append(data, []float64{rand.NormFloat64() + shift1, rand.NormFloat64() + shift2})
 	}
 
 	m.Train(data, &Option{
@@ -27,25 +27,25 @@ func TestGaussianTrain(t *testing.T) {
 		in []float64
 	}{
 		{
-			in: []float64{0, shift},
+			in: []float64{shift1, shift2},
 		},
 		{
-			in: []float64{0.1, shift - 0.1},
+			in: []float64{0.1 + shift1, -0.1 + shift2},
 		},
 		{
-			in: []float64{0, shift - 0.1},
+			in: []float64{-0.1 + shift1, 0.1 + shift2},
 		},
 	} {
 		var count int
 		for i := 0; i < total; i++ {
 			got, _ := m.Reconstruct(test.in, 2)
-			diff := math.Abs(got[1] - got[0] - shift)
-			if diff > 3 {
+			// mean +- 3 stddev
+			if math.Abs(got[0]-shift1) > 3 || math.Abs(got[1]-shift2) > 3 {
 				count++
 			}
 		}
 		errRate := float64(count) / float64(total)
-		if errRate > 0.05 {
+		if errRate > 0.02 {
 			t.Fatalf("reconstruct error rate %f", errRate)
 		}
 	}
