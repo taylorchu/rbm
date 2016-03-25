@@ -3,7 +3,7 @@ package rbm
 import "math"
 
 type Classifier struct {
-	rbm
+	*rbm
 
 	b      []float64
 	input  int
@@ -12,7 +12,7 @@ type Classifier struct {
 
 func NewClassifier(input, output, hidden int) *Classifier {
 	c := &Classifier{
-		rbm:    *newRBM(input+output, hidden),
+		rbm:    newRBM(input+output, hidden),
 		input:  input,
 		output: output,
 		b:      make([]float64, input+output),
@@ -51,7 +51,7 @@ func (c *Classifier) Train(input [][]float64, output []int, opt *Option) {
 			// to divide the total gradient computed on a mini-batch by the size of the mini-batch, so when talking
 			// about learning rates we will assume that they multiply the average, per-case gradient computed on
 			// a mini-batch, not the total gradient for the mini-batch.
-			c.update(LearningRate / float64(size))
+			c.update(learningRate / float64(size))
 		}
 	}
 }

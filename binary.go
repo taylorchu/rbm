@@ -1,9 +1,9 @@
 package rbm
 
 type Binary struct {
-	rbm
+	*rbm
 }
 
 func New(visible, hidden int) *Binary {
-	return &Binary{rbm: *newRBM(visible, hidden)}
+	return &Binary{rbm: newRBM(visible, hidden)}
 }

@@ -8,13 +8,13 @@ import (
 )
 
 const (
-	LearningRate = 0.1
-	// sensible values for the weight-cost coefficient for L2 weight-decay typically range from
+	learningRate = 0.1
+	// Sensible values for the weight-cost coefficient for L2 weight-decay typically range from
 	// 0.01 to 0.00001.
-	WeightDecay = 0.001
+	weightDecay = 0.001
 	// Use small random values for the weights chosen from a zero-mean Gaussian with a standard deviation
 	// of 0.01.
-	WeightStdDev = 0.01
+	weightStdDev = 0.01
 )
 
 type unitType uint8
@@ -85,7 +85,7 @@ func (m *rbm) resetDelta() {
 func (m *rbm) Reset() {
 	for i := 0; i < m.Visible(); i++ {
 		for j := 0; j < m.Hidden(); j++ {
-			m.w[i][j] = WeightStdDev * rand.NormFloat64()
+			m.w[i][j] = weightStdDev * rand.NormFloat64()
 		}
 	}
 
@@ -248,6 +248,13 @@ func (m *rbm) eh(h int, v []float64) float64 {
 	return e
 }
 
+func (m *rbm) ph(v []float64) []float64 {
+	for i := 0; i < m.Hidden(); i++ {
+		m.h[i] = sigmoid(m.eh(i, v))
+	}
+	return m.h
+}
+
 // Reconstruct returns reconstructed visible units and hidden units with gibbs sampling
 func (m *rbm) Reconstruct(v []float64, step int) ([]float64, []float64) {
 	copy(m.v, v)
@@ -342,16 +349,16 @@ func (m *rbm) update(rate float64) {
 			// It is important to multiply the derivative of the penalty term by the learning rate. Otherwise,
 			// changes in the learning rate change the function that is being optimized rather than just changing
 			// the optimization procedure.
-			m.w[i][j] += rate * (m.dw[i][j] - WeightDecay*m.w[i][j])
+			m.w[i][j] += rate * (m.dw[i][j] - weightDecay*m.w[i][j])
 		}
 	}
 	// bv
 	for i := 0; i < m.Visible(); i++ {
-		m.bv[i] += rate * (m.dbv[i] - WeightDecay*m.bv[i])
+		m.bv[i] += rate * (m.dbv[i] - weightDecay*m.bv[i])
 	}
 	// bh
 	for i := 0; i < m.Hidden(); i++ {
-		m.bh[i] += rate * (m.dbh[i] - WeightDecay*m.bh[i])
+		m.bh[i] += rate * (m.dbh[i] - weightDecay*m.bh[i])
 	}
 }
 
@@ -371,7 +378,7 @@ func (m *rbm) Train(data [][]float64, opt *Option) {
 			// to divide the total gradient computed on a mini-batch by the size of the mini-batch, so when talking
 			// about learning rates we will assume that they multiply the average, per-case gradient computed on
 			// a mini-batch, not the total gradient for the mini-batch.
-			m.update(LearningRate / float64(size))
+			m.update(learningRate / float64(size))
 		}
 	}
 }
