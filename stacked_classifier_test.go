@@ -24,7 +24,7 @@ func permInt(input []int, perm []int) []int {
 	return output
 }
 
-func normalizer(input [][]float64) func(...[]float64) {
+func normalizer(input [][]float64, f func([]float64) bool) func(...[]float64) {
 	if len(input) == 0 {
 		return func(_ ...[]float64) {
 			return
@@ -49,11 +49,14 @@ func normalizer(input [][]float64) func(...[]float64) {
 	}
 
 	for i := 0; i < len(input); i++ {
-		allZero[i] = true
-
-		for j := 0; j < len(input[0]); j++ {
-			if nonBinary[j] && input[i][j] != 0 {
-				allZero[i] = false
+		if f != nil {
+			allZero[i] = f(input[i])
+		} else {
+			allZero[i] = true
+			for j := 0; j < len(input[0]); j++ {
+				if nonBinary[j] && input[i][j] != 0 {
+					allZero[i] = false
+				}
 			}
 		}
 	}
@@ -90,7 +93,7 @@ func normalizer(input [][]float64) func(...[]float64) {
 			for j := 0; j < len(v[i]); j++ {
 				if nonBinary[j] {
 					if allZero[i] {
-						v[i][j] = -3
+						v[i][j] = -2
 					} else {
 						v[i][j] -= mean[j]
 						v[i][j] /= stdev[j]
@@ -98,9 +101,9 @@ func normalizer(input [][]float64) func(...[]float64) {
 				} else {
 					switch v[i][j] {
 					case 0:
-						v[i][j] = -3
+						v[i][j] = -2
 					case 1:
-						v[i][j] = 3
+						v[i][j] = 2
 					}
 				}
 			}
@@ -109,7 +112,7 @@ func normalizer(input [][]float64) func(...[]float64) {
 }
 
 func TestStackedClassifierTrain(t *testing.T) {
-	c, err := NewStackedClassifier(true, 4, 8, 2, 4)
+	c, err := NewStackedClassifier(true, 4, 4, 2, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -217,7 +220,7 @@ func TestStackedClassifierTrain(t *testing.T) {
 	perm := rand.Perm(len(input))
 	input = permFloat64(input, perm)
 
-	n := normalizer(input)
+	n := normalizer(input, nil)
 	n(input...)
 	output := []int{
 		0,
@@ -337,7 +340,7 @@ func TestStackedClassifierTrain(t *testing.T) {
 }
 
 func TestStackedClassifierTrain2(t *testing.T) {
-	c, err := NewStackedClassifier(true, 5, 10, 4, 8)
+	c, err := NewStackedClassifier(true, 5, 5, 4, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -424,12 +427,36 @@ func TestStackedClassifierTrain2(t *testing.T) {
 		{5, -4, 1, 1, 1},
 		{4, -4, -0.5, 1, 1},
 		{5, 1, 8, 0, 0},
+		{0, -3, -1.2, 0, 0},
+		{0, -5, -3, 0, 0},
+		{0, -5, -2, 0, 0},
+		{0, -5, -3, 0, 0},
+		{0, -5, -1.2, 0, 0},
+		{0, -4, -1, 0, 0},
+		{0, -3, -1.5, 0, 0},
+		{0, -5, -1.8, 0, 0},
+		{0, -4.5, -3, 0, 0},
+		{0, -5, -3, 0, 0},
+		{0, -5, -2, 0, 0},
+		{0, -5, -1, 0, 0},
+		{0, -5, -2, 0, 0},
+		{0, -4, -1.5, 0, 0},
+		{0, -4, -1.5, 0, 0},
+		{0, -3, -1.2, 0, 0},
+		{0, -4, -1, 0, 0},
+		{0, -3.5, -1.2, 0, 0},
+		{0, -4, -2, 0, 0},
+		{0, -4, -2.2, 0, 0},
+		{0, -5, -2, 0, 0},
+		{0, -4, -2, 0, 0},
 	}
 
 	perm := rand.Perm(len(input))
 	input = permFloat64(input, perm)
 
-	n := normalizer(input)
+	n := normalizer(input, func(v []float64) bool {
+		return v[0] == 0
+	})
 	n(input...)
 	output := []int{
 		1,
@@ -513,6 +540,28 @@ func TestStackedClassifierTrain2(t *testing.T) {
 		3,
 		3,
 		2,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
+		0,
 	}
 
 	output = permInt(output, perm)
