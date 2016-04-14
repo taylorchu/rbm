@@ -24,94 +24,109 @@ func permInt(input []int, perm []int) []int {
 	return output
 }
 
-func normalizer(input [][]float64, f func([]float64) bool) func(...[]float64) {
-	if len(input) == 0 {
-		return func(_ ...[]float64) {
-			return
+func expand(input [][]float64, add map[int]int) [][]float64 {
+	output := make([][]float64, len(input))
+	for i, v := range input {
+		var v2 []float64
+		for j, col := range v {
+			if n, ok := add[j]; ok {
+				one := make([]float64, n)
+				one[int(col)] = 1
+				v2 = append(v2, one...)
+			} else {
+				v2 = append(v2, col)
+			}
 		}
+		output[i] = v2
+	}
+	return output
+}
+
+type colStats struct {
+	mean  float64
+	stdev float64
+}
+
+func normalize(input [][]float64, stats map[int]colStats, f func([]float64) bool) [][]float64 {
+	output := make([][]float64, len(input))
+	for i, v := range input {
+		allZero := f != nil && f(v)
+		v2 := make([]float64, len(v))
+		for j, col := range v {
+			if s, ok := stats[j]; ok {
+				if allZero {
+					v2[j] = -2
+				} else {
+					v2[j] = (col - s.mean) / s.stdev
+				}
+			} else {
+				if col > 0 {
+					v2[j] = 2
+				} else {
+					v2[j] = -2
+				}
+			}
+		}
+		output[i] = v2
+	}
+	return output
+}
+
+func normalizer(input [][]float64, f func([]float64) bool) [][]float64 {
+	if len(input) == 0 {
+		return nil
 	}
 
-	mean := make([]float64, len(input[0]))
-	stdev := make([]float64, len(input[0]))
-	nonBinary := make([]bool, len(input[0]))
-
-	// all non-binary rows are zero
-	allZero := make([]bool, len(input))
+	stats := make(map[int]colStats)
 	for i := 0; i < len(input[0]); i++ {
+		binary := true
 		for j := 0; j < len(input); j++ {
 			switch input[j][i] {
 			case 0:
 			case 1:
 			default:
-				nonBinary[i] = true
+				binary = false
 			}
 		}
-	}
-
-	for i := 0; i < len(input); i++ {
-		if f != nil {
-			allZero[i] = f(input[i])
-		} else {
-			allZero[i] = true
-			for j := 0; j < len(input[0]); j++ {
-				if nonBinary[j] && input[i][j] != 0 {
-					allZero[i] = false
-				}
-			}
-		}
-	}
-
-	for i := 0; i < len(input[0]); i++ {
-		if !nonBinary[i] {
+		if binary {
 			fmt.Printf("col %d: binary\n", i+1)
 			continue
 		}
-		var count float64
+		var (
+			mean  float64
+			stdev float64
+			count float64
+		)
 		for j := 0; j < len(input); j++ {
-			if allZero[j] {
+			if f != nil && f(input[j]) {
 				continue
 			}
-			mean[i] += input[j][i]
+			mean += input[j][i]
 			count++
 		}
-		mean[i] /= count
+		mean /= count
 
 		for j := 0; j < len(input); j++ {
-			if allZero[j] {
+			if f != nil && f(input[j]) {
 				continue
 			}
-			stdev[i] += (input[j][i] - mean[i]) * (input[j][i] - mean[i])
+			stdev += (input[j][i] - mean) * (input[j][i] - mean)
 		}
-		stdev[i] /= count
-		stdev[i] = math.Sqrt(stdev[i])
+		stdev /= count
+		stdev = math.Sqrt(stdev)
 
-		fmt.Printf("col %d: mean %f stdev %f\n", i+1, mean[i], stdev[i])
-	}
+		fmt.Printf("col %d: mean %f stdev %f\n", i+1, mean, stdev)
 
-	return func(v ...[]float64) {
-		for i := 0; i < len(v); i++ {
-			for j := 0; j < len(v[i]); j++ {
-				if nonBinary[j] {
-					if allZero[i] {
-						v[i][j] = -2
-					} else {
-						v[i][j] -= mean[j]
-						v[i][j] /= stdev[j]
-					}
-				} else {
-					switch v[i][j] {
-					case 0:
-						v[i][j] = -2
-					case 1:
-						v[i][j] = 2
-					}
-				}
-			}
+		stats[i] = colStats{
+			mean:  mean,
+			stdev: stdev,
 		}
 	}
+
+	return normalize(input, stats, f)
 }
 
-func TestStackedClassifierTrain(t *testing.T) {
+func TestStackedClassifierTrain1(t *testing.T) {
 	c, err := NewStackedClassifier(true, 4, 4, 2, 4)
 	if err != nil {
 		t.Fatal(err)
@@ -220,8 +235,14 @@ func TestStackedClassifierTrain(t *testing.T) {
 	perm := rand.Perm(len(input))
 	input = permFloat64(input, perm)
 
-	n := normalizer(input, nil)
-	n(input...)
+	input = normalizer(input, func(v []float64) bool {
+		for _, col := range v {
+			if col != 0 {
+				return false
+			}
+		}
+		return true
+	})
 	output := []int{
 		0,
 		0,
@@ -454,10 +475,9 @@ func TestStackedClassifierTrain2(t *testing.T) {
 	perm := rand.Perm(len(input))
 	input = permFloat64(input, perm)
 
-	n := normalizer(input, func(v []float64) bool {
+	input = normalizer(input, func(v []float64) bool {
 		return v[0] == 0
 	})
-	n(input...)
 	output := []int{
 		1,
 		1,
@@ -562,6 +582,200 @@ func TestStackedClassifierTrain2(t *testing.T) {
 		0,
 		0,
 		0,
+	}
+
+	output = permInt(output, perm)
+
+	c.Train(input, output, &Option{
+		BatchSize: 10,
+		Iteration: 2000,
+		GibbsStep: 50,
+	})
+
+	for i := 0; i < len(input); i++ {
+		got := c.Classify(input[i])
+		want := output[i]
+		if !reflect.DeepEqual(got, want) {
+			t.Logf("%d: expect %v, got %v", perm[i]+1, want, got)
+		}
+	}
+}
+
+func TestStackedClassifierTrain3(t *testing.T) {
+	c, err := NewStackedClassifier(true, 10, 10, 3, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	input := [][]float64{
+		{0, 1, 1, 1, 0, 0, 0, 0},
+		{0, 0, 1, 0, 0, 0, 0, 0},
+		{0, 1, 0, 0, 0, 0, 0, 0},
+		{1, 1, 0, 0, 3, 1, 0, 0},
+		{0, 1, 1, 0, 0, 0, 0, 0},
+		{0, 1, 1, 0, 0, 0, 0, 0},
+		{0, 1, 1, 0, 0, 0, 0, 0},
+		{0, 1, 0, 1, 0, 3, 0, 0},
+		{0, 1, 0, 1, 0, 5, 0, 0},
+		{0, 1, 1, 0, 0, 2, 0, 0},
+		{0, 0, 0, 1, 0, 5, 0, 0},
+		{0, 1, 1, 0, 0, 5, 0, 0},
+		{0, 1, 0, 1, 2, 1, 0, 0},
+		{0, 1, 1, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 1, 0, 0, 0, 5, 2, 0},
+		{0, 1, 1, 0, 0, 0, 0, 0},
+		{1, 0, 0, 0, 0, 7, 3, 0},
+		{0, 1, 1, 0, 1, 2, 1, 0},
+		{0, 0, 1, 0, 0, 4, 1, 0},
+		{0, 1, 1, 0, 0, 0, 0, 0},
+		{0, 0, 1, 0, 0, 1, 0, 0},
+		{0, 0, 0, 0, 0, 8, 0, 0},
+		{0, 1, 0, 0, 0, 0, 0, 0},
+		{0, 1, 0, 0, 0, 4, 0, 0},
+		{0, 1, 0, 0, 0, 2, 1, 0},
+		{0, 1, 1, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 2, 0, 0},
+		{0, 1, 0, 0, 1, 8, 2, 0},
+		{0, 1, 0, 1, 0, 0, 0, 0},
+		{1, 1, 0, 0, 0, 4, 4, 0},
+		{0, 0, 0, 0, 5, 0, 0, 0},
+		{0, 1, 0, 0, 6, 0, 0, 0},
+		{2, 1, 0, 0, 0, 2, 2, 0},
+		{1, 0, 0, 0, 0, 6, 6, 0},
+		{0, 1, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 1, 0, 0, 1, 1, 1, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 1, 0, 1, 2, 0, 0, 0},
+		{1, 0, 0, 0, 0, 3, 3, 0},
+		{0, 1, 0, 1, 0, 2, 2, 0},
+		{1, 0, 0, 0, 0, 3, 3, 0},
+		{0, 0, 0, 1, 0, 4, 3, 1},
+		{0, 1, 1, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 1, 0, 0},
+		{2, 0, 0, 0, 0, 0, 0, 0},
+		{0, 1, 0, 0, 0, 0, 0, 0},
+		{1, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 1, 0, 0, 0, 0, 0, 0},
+		{0, 1, 0, 0, 0, 0, 0, 0},
+		{0, 1, 1, 0, 0, 0, 0, 0},
+		{0, 1, 0, 1, 0, 0, 0, 0},
+		{0, 1, 0, 0, 0, 4, 0, 0},
+		{0, 0, 0, 0, 3, 0, 0, 0},
+		{0, 1, 0, 0, 0, 1, 1, 0},
+		{2, 0, 0, 0, 0, 0, 0, 0},
+		{0, 1, 0, 0, 0, 0, 0, 0},
+		{0, 0, 1, 1, 0, 0, 0, 0},
+		{0, 0, 0, 0, 3, 0, 0, 0},
+		{2, 0, 0, 0, 1, 0, 0, 0},
+		{0, 0, 0, 0, 0, 3, 3, 0},
+		{0, 0, 0, 0, 0, 4, 4, 0},
+		{1, 0, 0, 0, 0, 4, 4, 0},
+		{1, 0, 0, 0, 0, 7, 6, 1},
+		{2, 0, 0, 0, 0, 0, 0, 0},
+		{2, 0, 0, 0, 0, 4, 4, 0},
+		{0, 0, 0, 0, 0, 0, 0, 1},
+		{1, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 5, 5, 1},
+		{1, 0, 0, 0, 0, 5, 5, 1},
+		{0, 0, 0, 0, 0, 2, 0, 0},
+		{0, 0, 0, 0, 0, 5, 5, 1},
+	}
+
+	input = expand(input, map[int]int{
+		0: 3,
+	})
+	perm := rand.Perm(len(input))
+	input = permFloat64(input, perm)
+
+	input = normalize(input, map[int]colStats{
+		6: {mean: 0, stdev: 0.33},
+		7: {mean: 0, stdev: 0.33},
+		8: {mean: 0, stdev: 0.33},
+	}, nil)
+	output := []int{
+		0,
+		1,
+		0,
+		1,
+		0,
+		0,
+		0,
+		1,
+		1,
+		1,
+		1,
+		1,
+		1,
+		0,
+		1,
+		1,
+		0,
+		2,
+		1,
+		1,
+		0,
+		1,
+		1,
+		0,
+		1,
+		1,
+		0,
+		1,
+		1,
+		1,
+		0,
+		1,
+		1,
+		1,
+		1,
+		2,
+		0,
+		1,
+		1,
+		1,
+		1,
+		1,
+		1,
+		1,
+		2,
+		2,
+		0,
+		1,
+		2,
+		0,
+		1,
+		1,
+		1,
+		0,
+		0,
+		0,
+		0,
+		1,
+		1,
+		1,
+		2,
+		0,
+		1,
+		2,
+		2,
+		2,
+		2,
+		2,
+		2,
+		2,
+		2,
+		2,
+		1,
+		2,
+		2,
+		2,
+		2,
 	}
 
 	output = permInt(output, perm)
