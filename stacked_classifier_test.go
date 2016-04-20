@@ -1,6 +1,7 @@
 package rbm
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"math/rand"
@@ -124,6 +125,29 @@ func normalizer(input [][]float64, f func([]float64) bool) [][]float64 {
 	}
 
 	return normalize(input, stats, f)
+}
+
+func TestStackedClassifierMarshal(t *testing.T) {
+	m, err := NewStackedClassifier(true, 4, 8, 2, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := new(bytes.Buffer)
+	err = m.WriteTo(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	m2, err := NewStackedClassifier(true, 4, 8, 2, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = m2.ReadFrom(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(m, m2) {
+		t.Fatalf("not equal")
+	}
 }
 
 func TestStackedClassifierTrain1(t *testing.T) {

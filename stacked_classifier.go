@@ -1,6 +1,9 @@
 package rbm
 
-import "errors"
+import (
+	"errors"
+	"io"
+)
 
 type StackedClassifier struct {
 	gaussian   *Gaussian
@@ -31,6 +34,46 @@ func NewStackedClassifier(withGaussian bool, units ...int) (*StackedClassifier, 
 	}
 
 	return s, nil
+}
+
+func (s *StackedClassifier) ReadFrom(r io.Reader) (err error) {
+	if s.gaussian != nil {
+		err = s.gaussian.ReadFrom(r)
+		if err != nil {
+			return
+		}
+	}
+	for _, b := range s.binary {
+		err = b.ReadFrom(r)
+		if err != nil {
+			return
+		}
+	}
+	err = s.classifier.ReadFrom(r)
+	if err != nil {
+		return
+	}
+	return
+}
+
+func (s *StackedClassifier) WriteTo(w io.Writer) (err error) {
+	if s.gaussian != nil {
+		err = s.gaussian.WriteTo(w)
+		if err != nil {
+			return
+		}
+	}
+	for _, b := range s.binary {
+		err = b.WriteTo(w)
+		if err != nil {
+			return
+		}
+	}
+	err = s.classifier.WriteTo(w)
+	if err != nil {
+		return
+	}
+	return
 }
 
 func (s *StackedClassifier) Train(input [][]float64, output []int, opt *Option) {
